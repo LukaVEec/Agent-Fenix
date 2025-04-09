@@ -11,16 +11,17 @@ visual = False
 count = 0
 wins = 0
 draws = 0
-for i in range(20):
+for i in range(10):
     if i%2==0:
         a = MCTSAgent.MCTSAgent2(1)
-        b = MCTSAgent.MCTSAgent(-1)
-        c = random_agent.RandomAgent(-1)
-        d = alphabeta_agent.AlphaBetaAgent(-1)
+        b = MCTSAgent.MCTSNoMemory(-1)
+        c = random_agent.RandomAgent(1)
+        d = alphabeta_agent.AlphaBetaAgent(1)
+        e = MCTSAgent.MCTSAgent(-1)
         if visual:
-            game = visual_game_manager.VisualGameManager(a,c)
+            game = visual_game_manager.VisualGameManager(a,e)
         else:
-            game = game_manager.TextGameManager(a,d,display=False)
+            game = game_manager.TextGameManager(d,e,display=False)
         x,y = game.play()
         if y==1:
             wins+=1
@@ -28,10 +29,11 @@ for i in range(20):
             draws+=1
     else:
         a = MCTSAgent.MCTSAgent2(-1)
-        b = MCTSAgent.MCTSAgent(1)
-        c = random_agent.RandomAgent(1)
-        d = alphabeta_agent.AlphaBetaAgent(1)
-        game = game_manager.TextGameManager(d,a,display=False)
+        b = MCTSAgent.MCTSNoMemory(1)
+        c = random_agent.RandomAgent(-1)
+        d = alphabeta_agent.AlphaBetaAgent(-1)
+        e = MCTSAgent.MCTSAgent(1)
+        game = game_manager.TextGameManager(e,d,display=False)
         x,y = game.play()
         if x==1:
             wins+=1

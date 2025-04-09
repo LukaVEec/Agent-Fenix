@@ -5,6 +5,165 @@ import math
 import random
 import numpy as np
 
+
+        
+class MCTSAgent(Agent):
+    """
+    Agent MCTS avec une rollout policy corresondant à la fonction d'évaluation liée au 
+    nombre de pions, généraux et roi
+    """
+    def __init__(self, player):
+        super().__init__(player)
+        self.root_node = None
+        self.previous_state = None
+        self.a = 0
+
+    def act(self, state, remaining_time):
+        """
+        Chooses the best action for the agent using the Monte Carlo Tree Search algorithm.
+        """
+        if(self.a<5):
+            actions = state.actions()
+            if len(actions) == 0:
+                raise Exception("No action available.")
+            depth = 4
+            best_action = None
+            best_value = float("-inf")
+            alpha = float("-inf")
+            beta = float("inf")
+            for action in actions:
+                value = self.min_value(state.result(action), alpha, beta, depth - 1)
+                if value > best_value:
+                    best_value = value
+                    best_action = action
+                alpha = max(alpha, best_value)
+            self.a += 1
+            return best_action
+        if self.root_node is None or self.previous_state is None :
+            self.root_node = MCTSNode(state, self.player)
+        else:
+
+            matched = False
+            for child in self.root_node.children:
+                if child.state._hash() == state._hash():
+                    self.root_node = child
+                    matched = True
+                    break
+            if not matched:
+                self.root_node = MCTSNode(state, self.player)
+        best_node = self.root_node.best_action()
+        self.previous_state = state.result(best_node.parent_action)
+        self.root_node = best_node
+        return best_node.parent_action
+    
+    def max_value(self, state, alpha, beta, depth):
+        if state.is_terminal() or depth == 0:
+            return state.utility(self.player)
+        value = float("-inf")
+        for action in state.actions():
+            eval = self.min_value(state.result(action), alpha, beta, depth - 1)
+            value = max(value, eval)
+            alpha = max(alpha, value)
+            if alpha >= beta:
+                break
+            
+        return value
+    
+    def min_value(self, state, alpha, beta, depth):
+        if state.is_terminal() or depth == 0:
+            return self.evaluation(state)
+        value = float("inf")
+        for action in state.actions():
+            eval = self.max_value(state.result(action), alpha, beta, depth - 1)
+            value = min(value, eval)
+            beta = min(beta, value)
+            if beta <= alpha:
+                break
+        return value
+    
+    def evaluation(self, state):
+        n_pions,m_pions = list(state.pieces.values()).count(self.player), list(state.pieces.values()).count(-self.player)
+        n_general,m_general = list(state.pieces.values()).count(self.player*2), list(state.pieces.values()).count(-self.player*2)
+        n_roi, m_roi = list(state.pieces.values()).count(self.player*3), list(state.pieces.values()).count(-self.player*3)
+        material_score = n_pions + n_general*2  - m_pions - m_general*2 + n_roi*50 - m_roi*50
+        
+        return material_score
+
+class MCTSAgent2(Agent):
+    """
+    Agent MCTS avec une rollout policy aléatoire et qui garde en mémoire l'arbre de recherche
+    """
+    def __init__(self, player):
+        super().__init__(player)
+        self.root_node = None
+        self.previous_state = None
+
+    def act(self, state, remaining_time):
+        """
+        Chooses the best action for the agent using the Monte Carlo Tree Search algorithm.
+        """
+       
+        if self.root_node is None or self.previous_state is None :
+            self.root_node = MCTSNode2(state, self.player)
+        else:
+
+            matched = False
+            for child in self.root_node.children:
+                if child.state._hash() == state._hash():
+                    self.root_node = child
+                    matched = True
+                    break
+            if not matched:
+                self.root_node = MCTSNode2(state, self.player)
+        best_node = self.root_node.best_action()
+        self.previous_state = state.result(best_node.parent_action)
+        self.root_node = best_node
+        return best_node.parent_action
+    
+class MCTSAgent3(Agent):
+    """ Agent MCAlphaBeta qui garde en mémoire l'arbre de recherche
+    """
+    def __init__(self, player):
+        super().__init__(player)
+        self.root_node = None
+        self.previous_state = None
+
+    def act(self, state, remaining_time):
+        """
+        Chooses the best action for the agent using the Monte Carlo Tree Search algorithm.
+        """
+       
+        if self.root_node is None or self.previous_state is None :
+            self.root_node = MCTSNode(state, self.player)
+        else:
+
+            matched = False
+            for child in self.root_node.children:
+                if child.state._hash() == state._hash():
+                    self.root_node = child
+                    matched = True
+                    break
+            if not matched:
+                self.root_node = MCTSNode(state, self.player)
+        best_node = self.root_node.best_action()
+        self.previous_state = state.result(best_node.parent_action)
+        self.root_node = best_node
+        return best_node.parent_action   
+
+class MCTSNoMemory(MCTSAgent2):
+    """ Agent MCTS sans mémoire
+    """
+    def __init__(self, player):
+        super().__init__(player)
+        self.root_node = None
+        self.previous_state = None
+
+    def act(self, state, remaining_time):
+       
+        self.root_node = MCTSNode(state, self.player)
+        best_node = self.root_node.best_action()
+        return best_node.parent_action
+
 class MCTSNode():
     def __init__(self, state, player,parent=None, parent_action=None):
         self.state = state
@@ -18,7 +177,7 @@ class MCTSNode():
         self.player = player
     
     def q(self):
-        return self.wins -self.losses
+        return self.wins 
     
     def n(self):
         return self.visits
@@ -29,10 +188,12 @@ class MCTSNode():
     
     def rollout(self):
         current_state = self.state
+        maximizing_player = False
         while not current_state.is_terminal():
             actions = current_state.actions()
-            action = self.rollout_policy(actions, current_state)
+            action = self.rollout_policy(actions, current_state, maximizing_player)
             current_state = current_state.result(action)
+            maximizing_player = not maximizing_player
         return current_state.utility(self.player) if self.parent else 0       
     
     def backpropagate(self, result):
@@ -53,19 +214,29 @@ class MCTSNode():
         self.children.append(child_node)
         return child_node 
     
-    def best_child(self, c_param=0.1):
+    def best_child(self, c_param=1.41):
     
         choices_weights = [(c.q() / c.n()) + c_param * np.sqrt((2 * np.log(self.n()) / c.n())) for c in self.children]
         return self.children[np.argmax(choices_weights)]
 
-    def rollout_policy(self, possible_moves, state):
+    def rollout_policy(self, possible_moves, state, maximizing_player):
         best_move = possible_moves[0]
-        max = -float('inf')
-        for i in range(len(possible_moves)):
-            if(self.evaluation(state.result(possible_moves[i])) > max):
-                max = self.evaluation(state.result(possible_moves[i]))
-                best_move = possible_moves[i]
-        return best_move
+        if maximizing_player:
+            max = -float('inf')
+            for i in range(len(possible_moves)):
+                value = self.evaluation(state.result(possible_moves[i]))
+                if(value > max):
+                    max = value
+                    best_move = possible_moves[i]
+            return best_move
+        else:
+            min = float('inf')
+            for i in range(len(possible_moves)):
+                value = self.evaluation(state.result(possible_moves[i]))
+                if(value < min):
+                    min = value
+                    best_move = possible_moves[i]
+            return best_move
     
     def _tree_policy(self):
         current_node = self
@@ -100,81 +271,8 @@ class MCTSNode():
         m_general = values.count(-self.player * 2)
         n_roi = values.count(self.player * 3)
         m_roi = values.count(-self.player * 3)
-        return n_pions + n_general * 2 + n_roi * 50 - (m_pions + m_general * 2 + m_roi * 50)
-        
-class MCTSAgent(Agent):
-
-    def __init__(self, player):
-        super().__init__(player)
-        self.root_node = None
-        self.previous_state = None
-
-    def act(self, state, remaining_time):
-        """
-        Chooses the best action for the agent using the Monte Carlo Tree Search algorithm.
-        """
-       
-        if self.root_node is None or self.previous_state is None :
-            self.root_node = MCTSNode(state, self.player)
-        else:
-
-            matched = False
-            for child in self.root_node.children:
-                if child.state._hash() == state._hash():
-                    self.root_node = child
-                    matched = True
-                    break
-            if not matched:
-                self.root_node = MCTSNode(state, self.player)
-        best_node = self.root_node.best_action()
-        self.previous_state = state.result(best_node.parent_action)
-        self.root_node = best_node
-        return best_node.parent_action
-
-class MCTSNode3(MCTSNode):
-    def rollout(self):
-        return self.alphabeta(self.state, depth=3, alpha=-float('inf'), beta=float('inf'))
-
-    def alphabeta(self, state, depth, alpha, beta):
-        if depth == 0 or state.is_terminal():
-            return state.utility(self.player)
-        for action in state.actions():
-            next_state = state.result(action)
-            value = -self.alphabeta(next_state, depth-1, -beta, -alpha)
-            alpha = max(alpha, value)
-            if alpha >= beta:
-                break
-        return alpha
-
-class MCTSAgent3(MCTSAgent):
-
-    def __init__(self, player):
-        super().__init__(player)
-        self.root_node = None
-        self.previous_state = None
-
-    def act(self, state, remaining_time):
-        """
-        Chooses the best action for the agent using the Monte Carlo Tree Search algorithm.
-        """
-       
-        if self.root_node is None or self.previous_state is None :
-            self.root_node = MCTSNode3(state, self.player)
-        else:
-
-            matched = False
-            for child in self.root_node.children:
-                if child.state._hash() == state._hash():
-                    self.root_node = child
-                    matched = True
-                    break
-            if not matched:
-                self.root_node = MCTSNode3(state, self.player)
-        best_node = self.root_node.best_action()
-        self.previous_state = state.result(best_node.parent_action)
-        self.root_node = best_node
-        return best_node.parent_action
-
+        return n_pions + n_general * 2 + n_roi * 50 - (m_pions + m_general * 2 + m_roi * 50) * random.uniform(0.5, 1.5)
+    
 class MCTSNode2():
     def __init__(self, state, player,parent=None, parent_action=None):
         self.state = state
@@ -201,7 +299,7 @@ class MCTSNode2():
         current_state = self.state
         while not current_state.is_terminal():
             actions = current_state.actions()
-            action = self.rollout_policy(actions, current_state)
+            action = self.rollout_policy(actions, current_state, )
             current_state = current_state.result(action)
         return current_state.utility(self.player) if self.parent else 0       
     
@@ -223,7 +321,7 @@ class MCTSNode2():
         self.children.append(child_node)
         return child_node 
     
-    def best_child(self, c_param=0.1):
+    def best_child(self, c_param=1.41):
     
         choices_weights = [(c.q() / c.n()) + c_param * np.sqrt((2 * np.log(self.n()) / c.n())) for c in self.children]
         return self.children[np.argmax(choices_weights)]
@@ -249,85 +347,12 @@ class MCTSNode2():
             if time.perf_counter() - start_time > time_limit:
                 break
             v = self._tree_policy()
-            reward = v.rollout()
+            reward = v.rollout() 
             v.backpropagate(reward)
             simulation += 1
         return self.best_child(c_param=0.1)
     
     def is_terminal_node(self):
         return self.state.is_terminal()
-
-
-class MCTSAgent2(Agent):
-
-    def __init__(self, player):
-        super().__init__(player)
-        self.root_node = None
-        self.previous_state = None
-
-    def act(self, state, remaining_time):
-        """
-        Chooses the best action for the agent using the Monte Carlo Tree Search algorithm.
-        """
-       
-        if self.root_node is None or self.previous_state is None :
-            self.root_node = MCTSNode2(state, self.player)
-        else:
-
-            matched = False
-            for child in self.root_node.children:
-                if child.state._hash() == state._hash():
-                    self.root_node = child
-                    matched = True
-                    break
-            if not matched:
-                self.root_node = MCTSNode2(state, self.player)
-        best_node = self.root_node.best_action()
-        self.previous_state = state.result(best_node.parent_action)
-        self.root_node = best_node
-        return best_node.parent_action
     
 
-
-class MCTSNode4(MCTSNode):
-    def rollout(self):
-        return self.alphabeta(self.state, depth=3, alpha=-float('inf'), beta=float('inf'))
-
-    def alphabeta(self, state, depth, alpha, beta):
-        if depth == 0 or state.is_terminal():
-            return state.utility(self.player)
-        for action in state.actions():
-            next_state = state.result(action)
-            value = -self.alphabeta(next_state, depth-1, -beta, -alpha)
-            alpha = max(alpha, value)
-            if alpha >= beta:
-                break
-        return alpha
-
-class MCTSAgent4(Agent):
-    def __init__(self, player):
-        super().__init__(player)
-        self.root_node = None
-        self.previous_state = None
-
-    def act(self, state, remaining_time):
-        """
-        Chooses the best action for the agent using the Monte Carlo Tree Search algorithm.
-        """
-       
-        if self.root_node is None or self.previous_state is None :
-            self.root_node = MCTSNode4(state, self.player)
-        else:
-
-            matched = False
-            for child in self.root_node.children:
-                if child.state._hash() == state._hash():
-                    self.root_node = child
-                    matched = True
-                    break
-            if not matched:
-                self.root_node = MCTSNode4(state, self.player)
-        best_node = self.root_node.best_action()
-        self.previous_state = state.result(best_node.parent_action)
-        self.root_node = best_node
-        return best_node.parent_action
